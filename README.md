@@ -8,7 +8,8 @@ Prevents the event from being passed to the system.
 
 - `HID_WEBHOOK_DEVICES` - whitespace separated list of HID device file paths to intercept
 - `HID_WEBHOOK_URLS` - whitespace separated list of URLs to POST events to
-- `HID_WEBHOOK_NOVERIFY` - set to `true` to disable TLS verification
+- `HID_WEBHOOK_NOVERIFY` - set to `true` to disable TLS verification (default `false`)
+- `HID_WEBHOOK_ONLY_DOWN` - set to `true` to only send `down` events (default `false`)
 
 ## POST body
 

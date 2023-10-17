@@ -41,6 +41,11 @@ in
       type = lib.types.bool;
       default = false;
     };
+
+    only_down = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -65,6 +70,7 @@ in
         HID_WEBHOOK_DEVICES = lib.concatStringsSep " " cfg.device_paths;
         HID_WEBHOOK_URLS = lib.concatStringsSep " " cfg.urls;
         HID_WEBHOOK_NOVERIFY = if cfg.no_verify then "true" else "false";
+        HID_WEBHOOK_ONLY_DOWN = if cfg.only_down then "true" else "false";
 
         RUST_LOG = "warn,hid_webhook=info";
         RUST_BACKTRACE = "1";

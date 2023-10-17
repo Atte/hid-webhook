@@ -35,6 +35,7 @@ fn root_certs() -> RootCertStore {
 fn main() {
     let devices = env_set("HID_WEBHOOK_DEVICES").expect("HID_WEBHOOK_DEVICES invalid");
     let urls = env_set("HID_WEBHOOK_URLS").expect("HID_WEBHOOK_URLS invalid");
+    let only_down = std::env::var_os("HID_WEBHOOK_ONLY_DOWN") == Some("true".into());
 
     let devices: HashSet<_> = devices.into_iter().map(PathBuf::from).collect();
 
@@ -65,7 +66,7 @@ fn main() {
     std::thread::scope(|scope| {
         for device in &devices {
             scope.spawn(|| loop {
-                if let Err(err) = device_thread(device, &agent, &urls) {
+                if let Err(err) = device_thread(device, &agent, &urls, only_down) {
                     eprintln!("{err}");
                 }
                 std::thread::sleep(Duration::from_secs(1));
@@ -74,7 +75,12 @@ fn main() {
     });
 }
 
-fn device_thread(device_path: &Path, agent: &Agent, urls: &HashSet<String>) -> std::io::Result<()> {
+fn device_thread(
+    device_path: &Path,
+    agent: &Agent,
+    urls: &HashSet<String>,
+    only_down: bool,
+) -> std::io::Result<()> {
     let mut device = Device::open(device_path)?;
     device.grab()?;
 
@@ -83,6 +89,10 @@ fn device_thread(device_path: &Path, agent: &Agent, urls: &HashSet<String>) -> s
             match event.kind() {
                 InputEventKind::Key(key) => {
                     let down = event.value() == 1;
+                    if only_down && !down {
+                        continue;
+                    }
+
                     let code = key.code();
                     println!(
                         "{} {} {}",
@@ -93,7 +103,7 @@ fn device_thread(device_path: &Path, agent: &Agent, urls: &HashSet<String>) -> s
 
                     for url in urls {
                         if let Err(err) = agent
-                            .post(&url)
+                            .post(url)
                             .set("Content-Type", "application/json")
                             .send_json(json!({
                                 "device_path": device_path,
