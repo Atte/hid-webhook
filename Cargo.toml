@@ -1,0 +1,10 @@
+[package]
+name = "hid-webhook"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+evdev = "0.12.1"
+rustls = { version = "0.21.7", default-features = false, features = ["tls12", "dangerous_configuration"] }
+ureq = { version = "2.8.0", features = ["json"] }
+webpki-roots = "0.25.2"
