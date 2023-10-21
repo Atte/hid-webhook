@@ -42,8 +42,6 @@
 
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
-
-          buildType = "debug";
         };
 
       devShells.default = pkgs.mkShell {
