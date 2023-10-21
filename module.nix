@@ -53,8 +53,8 @@ in
     };
 
     timeout = lib.mkOption {
-      type = lib.types.int;
-      default = 3;
+      type = lib.types.str;
+      default = "3s";
     };
 
     ignore_keys = lib.mkOption {
@@ -89,7 +89,7 @@ in
           HID_WEBHOOK_NO_VERIFY = bool cfg.no_verify;
           HID_WEBHOOK_DOWN = bool cfg.down;
           HID_WEBHOOK_UP = bool cfg.up;
-          HID_WEBHOOK_TIMEOUT = builtins.toString cfg.timeout;
+          HID_WEBHOOK_TIMEOUT = cfg.timeout;
           HID_WEBHOOK_IGNORE_KEYS = lib.concatStringsSep "," (builtins.map builtins.toString cfg.ignore_keys);
 
           RUST_LOG = "hid_webhook=info";
