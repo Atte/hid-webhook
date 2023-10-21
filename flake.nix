@@ -8,11 +8,6 @@
       flake = false;
     };
 
-    gitignore = {
-      url = "github:hercules-ci/gitignore.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -20,7 +15,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, gitignore, rust-overlay, ... }: {
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }: {
     nixosModules.default = import ./module.nix;
     overlays.default = final: prev: {
       hid-webhook = self.packages.${prev.system}.default;
@@ -35,19 +30,20 @@
         cargo = pkgs.rust-bin.stable.latest.minimal;
         rustc = pkgs.rust-bin.stable.latest.minimal;
       };
-      nativeBuildInputs = with pkgs; [ ];
     in
     {
-      packages.default = rustPlatform.buildRustPackage {
-          pname = "hid-webhook";
-          version = "0.1.0";
+      packages.default =
+        let
+          spec = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        in
+        rustPlatform.buildRustPackage {
+          pname = spec.package.name;
+          version = spec.package.version;
 
-          src = gitignore.lib.gitignoreSource ./.;
+          src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
 
           buildType = "debug";
-
-          inherit nativeBuildInputs;
         };
 
       devShells.default = pkgs.mkShell {
@@ -56,7 +52,7 @@
             extensions = [ "rust-analyzer" "rust-src" ];
           })
           cargo-outdated
-        ] ++ nativeBuildInputs;
+        ];
       };
     });
 }

@@ -6,17 +6,21 @@ Prevents the event from being passed to the system.
 
 ## Environment variables
 
-- `HID_WEBHOOK_DEVICES` - whitespace separated list of HID device file paths to intercept
-- `HID_WEBHOOK_URLS` - whitespace separated list of URLs to POST events to
-- `HID_WEBHOOK_NOVERIFY` - set to `true` to disable TLS verification (default `false`)
-- `HID_WEBHOOK_ONLY_DOWN` - set to `true` to only send `down` events (default `false`)
+- `HID_WEBHOOK_DEVICES` - comma separated list of HID device file paths to intercept
+- `HID_WEBHOOK_URLS` - comma separated list of URLs to POST events to
+- `HID_WEBHOOK_NO_VERIFY` - set to `true` to disable TLS verification (default `false`)
+- `HID_WEBHOOK_DOWN` - set to `true` to send `down` events (default `true`)
+- `HID_WEBHOOK_UP` - set to `true` to send `up` events (default `false`)
+- `HID_WEBHOOK_IGNORE_KEYS` -  comma separated list of keys to ignore
+- `HID_WEBHOOK_TIMEOUT` - timeout for HTTP requests (default 3 seconds)
 
 ## POST body
 
 ```json
 {
     "device_path": "/dev/input/event0",
-    "code": 272,
+    "key": "KEY_A",
+    "code": 30,
     "down": true
 }
 ```

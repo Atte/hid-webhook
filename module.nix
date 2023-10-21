@@ -42,9 +42,24 @@ in
       default = false;
     };
 
-    only_down = lib.mkOption {
+    down = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+    };
+
+    up = lib.mkOption {
       type = lib.types.bool;
       default = false;
+    };
+
+    timeout = lib.mkOption {
+      type = lib.types.int;
+      default = 3;
+    };
+
+    ignore_keys = lib.mkOption {
+      type = lib.types.listOf lib.types.int;
+      default = [ ];
     };
   };
 
@@ -67,12 +82,15 @@ in
         Restart = "on-failure";
       };
       environment = {
-        HID_WEBHOOK_DEVICES = lib.concatStringsSep " " cfg.device_paths;
-        HID_WEBHOOK_URLS = lib.concatStringsSep " " cfg.urls;
-        HID_WEBHOOK_NOVERIFY = if cfg.no_verify then "true" else "false";
-        HID_WEBHOOK_ONLY_DOWN = if cfg.only_down then "true" else "false";
+        HID_WEBHOOK_DEVICES = lib.concatStringsSep "," cfg.device_paths;
+        HID_WEBHOOK_URLS = lib.concatStringsSep "," cfg.urls;
+        HID_WEBHOOK_NO_VERIFY = builtins.toString cfg.no_verify;
+        HID_WEBHOOK_DOWN = builtins.toString cfg.down;
+        HID_WEBHOOK_UP = builtins.toString cfg.up;
+        HID_WEBHOOK_TIMEOUT = builtins.toString cfg.timeout;
+        HID_WEBHOOK_IGNORE_KEYS = lib.concatStringsSep "," (builtins.map builtins.toString cfg.ignore_keys);
 
-        RUST_LOG = "warn,hid_webhook=info";
+        RUST_LOG = "hid_webhook=info";
         RUST_BACKTRACE = "1";
       };
     };

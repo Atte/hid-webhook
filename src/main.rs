@@ -1,73 +1,55 @@
-use evdev::{Device, InputEventKind};
-use noop_verifier::NoopVerifier;
-use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
+use config::Config;
+use evdev::{Device, InputEventKind, Key};
+use serde::Serialize;
 use std::{
     collections::HashSet,
-    env::VarError,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
-use ureq::{json, Agent, AgentBuilder};
+use ureq::{Agent, AgentBuilder};
 
-mod noop_verifier;
-
-fn env_set(name: &str) -> Result<HashSet<String>, VarError> {
-    Ok(std::env::var(name)?
-        .split_ascii_whitespace()
-        .map(|s| s.to_owned())
-        .filter(|s| !s.is_empty())
-        .collect())
-}
-
-fn root_certs() -> RootCertStore {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-    root_store
-}
+mod config;
+mod tls_config;
 
 fn main() {
-    let devices = env_set("HID_WEBHOOK_DEVICES").expect("HID_WEBHOOK_DEVICES invalid");
-    let urls = env_set("HID_WEBHOOK_URLS").expect("HID_WEBHOOK_URLS invalid");
-    let only_down = std::env::var_os("HID_WEBHOOK_ONLY_DOWN") == Some("true".into());
+    env_logger::init();
 
-    let devices: HashSet<_> = devices.into_iter().map(PathBuf::from).collect();
-
-    let tls_config = Arc::new(
-        if std::env::var_os("HID_WEBHOOK_NOVERIFY") == Some("true".into()) {
-            ClientConfig::builder()
-                .with_safe_defaults()
-                .with_custom_certificate_verifier(Arc::new(NoopVerifier))
-                .with_no_client_auth()
-        } else {
-            ClientConfig::builder()
-                .with_safe_defaults()
-                .with_root_certificates(root_certs())
-                .with_no_client_auth()
-        },
-    );
+    let config: Config = match envy::prefixed("HID_WEBHOOK_").from_env() {
+        Ok(config) => config,
+        Err(err) => {
+            log::error!("Failed to load configuration: {}", err);
+            return;
+        }
+    };
+    log::trace!("Configuration: {:#?}", config);
 
     let agent = AgentBuilder::new()
-        .timeout(Duration::from_secs(3))
+        .timeout(config.timeout)
         .user_agent(concat!(
             env!("CARGO_PKG_NAME"),
             "/",
             env!("CARGO_PKG_VERSION")
         ))
-        .tls_config(tls_config)
+        .tls_config(Arc::new(if config.no_verify {
+            tls_config::noverify()
+        } else {
+            tls_config::safe()
+        }))
         .build();
 
+    let device_paths = config
+        .devices
+        .iter()
+        .map(PathBuf::from)
+        .collect::<HashSet<_>>();
+
     std::thread::scope(|scope| {
-        for device in &devices {
+        for device_path in &device_paths {
+            log::debug!("Spawning thread for {}", device_path.display());
             scope.spawn(|| loop {
-                if let Err(err) = device_thread(device, &agent, &urls, only_down) {
-                    eprintln!("{err}");
+                if let Err(err) = device_thread(device_path, &config, &agent) {
+                    log::error!("{}: {err}", device_path.display());
                 }
                 std::thread::sleep(Duration::from_secs(1));
             });
@@ -75,12 +57,15 @@ fn main() {
     });
 }
 
-fn device_thread(
-    device_path: &Path,
-    agent: &Agent,
-    urls: &HashSet<String>,
-    only_down: bool,
-) -> std::io::Result<()> {
+#[derive(Debug, Clone, Serialize)]
+struct PostBody<'a> {
+    device_path: &'a Path,
+    key: Key,
+    code: u16,
+    down: bool,
+}
+
+fn device_thread(device_path: &Path, config: &Config, agent: &Agent) -> std::io::Result<()> {
     let mut device = Device::open(device_path)?;
     device.grab()?;
 
@@ -89,29 +74,46 @@ fn device_thread(
             match event.kind() {
                 InputEventKind::Key(key) => {
                     let down = event.value() == 1;
-                    if only_down && !down {
+                    if config.down && !down {
+                        log::trace!("{}: Ignoring up {}", device_path.display(), key.code());
+                        continue;
+                    }
+                    if config.up && down {
+                        log::trace!("{}: Ignoring down {}", device_path.display(), key.code());
                         continue;
                     }
 
                     let code = key.code();
-                    println!(
-                        "{} {} {}",
+                    if config.ignore_keys.contains(&code) {
+                        log::trace!("{}: Ignoring key {}", device_path.display(), code);
+                        continue;
+                    }
+
+                    log::info!(
+                        "{}: {} {}",
                         device_path.display(),
                         code,
                         if down { "down" } else { "up" }
                     );
 
-                    for url in urls {
+                    for url in &config.urls {
+                        log::debug!("{}: Posting to {}", device_path.display(), url);
                         if let Err(err) = agent
                             .post(url)
                             .set("Content-Type", "application/json")
-                            .send_json(json!({
-                                "device_path": device_path,
-                                "code": code,
-                                "down": down,
-                            }))
+                            .send_json(PostBody {
+                                device_path,
+                                key,
+                                code,
+                                down,
+                            })
                         {
-                            eprintln!("failed to post to {}: {}", url, err);
+                            log::error!(
+                                "{}: Failed to post to {}: {}",
+                                device_path.display(),
+                                url,
+                                err
+                            );
                         }
                     }
                 }
