@@ -24,5 +24,6 @@ pub struct Config {
     #[serde(default)]
     pub ignore_keys: HashSet<u16>,
     #[serde(default = "default_timeout")]
+    #[serde(with = "humantime_serde")]
     pub timeout: Duration,
 }

@@ -11,8 +11,8 @@ Prevents the event from being passed to the system.
 - `HID_WEBHOOK_NO_VERIFY` - set to `true` to disable TLS verification (default `false`)
 - `HID_WEBHOOK_DOWN` - set to `true` to send `down` events (default `true`)
 - `HID_WEBHOOK_UP` - set to `true` to send `up` events (default `false`)
-- `HID_WEBHOOK_IGNORE_KEYS` -  comma separated list of keys to ignore
-- `HID_WEBHOOK_TIMEOUT` - timeout for HTTP requests (default 3 seconds)
+- `HID_WEBHOOK_IGNORE_KEYS` -  comma separated list of key codes to ignore
+- `HID_WEBHOOK_TIMEOUT` - timeout for HTTP requests (default `3s`)
 
 ## POST body
 
