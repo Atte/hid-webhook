@@ -81,18 +81,20 @@ in
         ExecStart = "${cfg.package}/bin/hid-webhook";
         Restart = "on-failure";
       };
-      environment = {
-        HID_WEBHOOK_DEVICES = lib.concatStringsSep "," cfg.device_paths;
-        HID_WEBHOOK_URLS = lib.concatStringsSep "," cfg.urls;
-        HID_WEBHOOK_NO_VERIFY = builtins.toString cfg.no_verify;
-        HID_WEBHOOK_DOWN = builtins.toString cfg.down;
-        HID_WEBHOOK_UP = builtins.toString cfg.up;
-        HID_WEBHOOK_TIMEOUT = builtins.toString cfg.timeout;
-        HID_WEBHOOK_IGNORE_KEYS = lib.concatStringsSep "," (builtins.map builtins.toString cfg.ignore_keys);
+      environment =
+        let bool = b: if b then "true" else "false"; in
+        {
+          HID_WEBHOOK_DEVICES = lib.concatStringsSep "," cfg.device_paths;
+          HID_WEBHOOK_URLS = lib.concatStringsSep "," cfg.urls;
+          HID_WEBHOOK_NO_VERIFY = bool cfg.no_verify;
+          HID_WEBHOOK_DOWN = bool cfg.down;
+          HID_WEBHOOK_UP = bool cfg.up;
+          HID_WEBHOOK_TIMEOUT = bool cfg.timeout;
+          HID_WEBHOOK_IGNORE_KEYS = lib.concatStringsSep "," (builtins.map builtins.toString cfg.ignore_keys);
 
-        RUST_LOG = "hid_webhook=info";
-        RUST_BACKTRACE = "1";
-      };
+          RUST_LOG = "hid_webhook=info";
+          RUST_BACKTRACE = "1";
+        };
     };
 
     services.udev.extraRules = lib.concatStringsSep "\n" (builtins.map
