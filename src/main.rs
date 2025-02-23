@@ -1,16 +1,14 @@
 use config::Config;
-use evdev::{Device, InputEventKind, Key};
+use evdev::{Device, EventSummary, KeyCode};
 use serde::Serialize;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::Arc,
     time::Duration,
 };
-use ureq::{Agent, AgentBuilder};
+use ureq::{tls::TlsConfig, Agent};
 
 mod config;
-mod tls_config;
 
 fn main() {
     env_logger::init();
@@ -24,19 +22,20 @@ fn main() {
     };
     log::trace!("Configuration: {:#?}", config);
 
-    let agent = AgentBuilder::new()
-        .timeout(config.timeout)
+    let agent = Agent::config_builder()
+        .timeout_global(Some(config.timeout))
         .user_agent(concat!(
             env!("CARGO_PKG_NAME"),
             "/",
             env!("CARGO_PKG_VERSION")
         ))
-        .tls_config(Arc::new(if config.no_verify {
-            tls_config::noverify()
+        .tls_config(if config.no_verify {
+            TlsConfig::builder().disable_verification(true).build()
         } else {
-            tls_config::safe()
-        }))
-        .build();
+            TlsConfig::default()
+        })
+        .build()
+        .new_agent();
 
     let device_paths = config
         .devices
@@ -60,7 +59,7 @@ fn main() {
 #[derive(Debug, Clone, Serialize)]
 struct PostBody<'a> {
     device_path: &'a Path,
-    key: Key,
+    key: KeyCode,
     code: u16,
     down: bool,
 }
@@ -71,8 +70,8 @@ fn device_thread(device_path: &Path, config: &Config, agent: &Agent) -> std::io:
 
     loop {
         for event in device.fetch_events()? {
-            match event.kind() {
-                InputEventKind::Key(key) => {
+            match event.destructure() {
+                EventSummary::Key(_, key, _) => {
                     let down = event.value() == 1;
                     if config.down && !down {
                         log::trace!("{}: Ignoring up {}", device_path.display(), key.code());
@@ -100,7 +99,7 @@ fn device_thread(device_path: &Path, config: &Config, agent: &Agent) -> std::io:
                         log::debug!("{}: Posting to {}", device_path.display(), url);
                         if let Err(err) = agent
                             .post(url)
-                            .set("Content-Type", "application/json")
+                            .header("Content-Type", "application/json")
                             .send_json(PostBody {
                                 device_path,
                                 key,
